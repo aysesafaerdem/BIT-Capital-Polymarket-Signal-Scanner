@@ -17,6 +17,7 @@ Requirements
 ------------
 - Python 3.10+ recommended (3.9 works with provider warnings)
 - Internet access (Polymarket API)
+- Optional for reproducible local Postgres: Supabase CLI + Docker
 - Optional for full mode: at least one key
   - `GROQ_API_KEY` or `GEMINI_API_KEY` or `ANTHROPIC_API_KEY`
 
@@ -93,7 +94,36 @@ URL: http://localhost:5001
 Actions: Postgres write paths enabled (manual + API-tested)
 ```
 
-5) How To Provide API Keys
+5) Database Setup (Supabase CLI, reproducible)
+----------------------------------------------
+This repo includes:
+- `supabase/migrations/` for schema + policies
+- `supabase/seed.sql` for sample data
+- `supabase/config.toml` for local Supabase config
+
+Install Supabase CLI:
+- macOS (Homebrew): `brew install supabase/tap/supabase`
+- Windows (Scoop): `scoop bucket add supabase https://github.com/supabase/scoop-bucket.git` then `scoop install supabase`
+
+Start local Supabase stack:
+```bash
+supabase start
+```
+
+Apply migrations + seed from scratch:
+```bash
+supabase db reset
+```
+
+After reset, sample data is available immediately (markets, signals, reports, routes, evidence).
+
+If you want to sync local migration history with your existing remote project:
+```bash
+supabase link --project-ref izhfxxecmwrrxdvlptbm
+supabase db pull
+```
+
+6) How To Provide API Keys
 --------------------------
 Recommended: put keys into `.env` and restart app.
 
@@ -123,7 +153,7 @@ echo $env:GROQ_API_KEY
 
 If key is set, output is non-empty.
 
-6) Expected Runtime Output
+7) Expected Runtime Output
 --------------------------
 After startup, expected recurring logs:
 - Scheduler starts:
@@ -138,7 +168,7 @@ After startup, expected recurring logs:
   - `[REPORT] Generating signal report...`
   - `[REPORT] Report #... saved to database.`
 
-7) Open App + Smoke Test
+8) Open App + Smoke Test
 ------------------------
 Open:
 - [http://localhost:5001](http://localhost:5001)
@@ -152,7 +182,7 @@ In UI:
    - Live Markets table is populated
    - Reports tab shows newest report on top
 
-8) Optional API Smoke Test
+9) Optional API Smoke Test
 --------------------------
 ```bash
 curl -s http://localhost:5001/api/stats
@@ -161,7 +191,7 @@ curl -s http://localhost:5001/api/reports
 curl -s http://localhost:5001/api/job/status
 ```
 
-9) Common Issues
+10) Common Issues
 ----------------
 A) Port in use
 - Run with another port:
@@ -185,7 +215,10 @@ E) Provider quota errors (`429`)
 - Expected on free tiers.
 - App continues with fallback logic where possible.
 
-10) Project Layout
+F) Supabase CLI not found
+- Install Supabase CLI first, then rerun `supabase start` and `supabase db reset`.
+
+11) Project Layout
 ------------------
 ```text
 app.py
@@ -203,10 +236,16 @@ frontend/
   index.html
 scripts/
   migrate_sqlite_to_postgres.py
+supabase/
+  config.toml
+  seed.sql
+  migrations/
+    20260302120000_init.sql
+    20260302121000_rls_policies.sql
 REPORT.md
 ```
 
-11) Core Endpoints
+12) Core Endpoints
 ------------------
 - `GET /api/stats`
 - `GET /api/markets`
@@ -217,19 +256,3 @@ REPORT.md
 - `POST /api/actions/analyze`
 - `POST /api/actions/report`
 - `GET /api/job/status`
-
-
-11) Case-Study Mapping (What to look for)
------------------------------------------
-- BIT focus understanding: fund/holding trigger ontology integrated
-- Intelligent filtering: strict ACTIONABLE/MONITOR/IGNORE routing
-- LLM signal extraction: provider-aware causal reasoning with fallback
-- Scheduled ingestion: recurring background pipeline
-- Database: normalized Postgres schema available
-- Web interface: analyst/PM workflow pages
-
-Final Notes for Reviewers
--------------------------
-- For a strict reproducible run without external dependencies, use SQLite mode.
-- For the best scoring intent of the case study, use Postgres + at least one LLM key.
-- See REPORT.md for implementation decisions and learnings.
