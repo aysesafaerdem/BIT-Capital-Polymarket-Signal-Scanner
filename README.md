@@ -1,179 +1,193 @@
 BIT Capital Polymarket Signal Scanner
 ====================================
 
-This repo is packaged for reviewer execution from a fresh ZIP download (no prior setup assumed).
+Reviewer-friendly setup guide for a fresh ZIP extraction.
 
-What this app does (in 30 seconds)
-----------------------------------
-- Pulls live markets from Polymarket
-- Classifies markets into IGNORE / MONITOR / ACTIONABLE
-- Routes signals to BIT Capital funds & holdings using a trigger ontology
-- Generates a concise analyst-style report
-- Works in two modes:
-  A) Fast (SQLite + rule-based): reproducible run, no external DB, no API keys
-  B) Full (Postgres + LLM): richer reasoning + persistent storage
+What this app does
+------------------
+- Pulls active markets from Polymarket
+- Classifies markets as `IGNORE / MONITOR / ACTIONABLE`
+- Routes signals to BIT fund/holding exposure
+- Generates analyst-style reports
+- Runs with:
+  - `SQLite + rules` (fast, reproducible, no keys)
+  - `Postgres + LLM` (full mode, richer reasoning)
 
 Requirements
 ------------
-- macOS/Linux terminal (bash/zsh)
-- Python 3.10+ recommended (3.9 works with minor provider warnings)
+- Python 3.10+ recommended (3.9 works with provider warnings)
 - Internet access (Polymarket API)
-- Optional (for Full mode): at least one LLM API key
-  - GROQ_API_KEY and/or GEMINI_API_KEY and/or ANTHROPIC_API_KEY
+- Optional for full mode: at least one key
+  - `GROQ_API_KEY` or `GEMINI_API_KEY` or `ANTHROPIC_API_KEY`
 
-1) Start From ZIP (Reviewer Path)
---------------------------------
-1. Download and extract the ZIP
-2. Open Terminal
-3. cd into the project folder:
+1) Start From ZIP (All Platforms)
+---------------------------------
+1. Extract ZIP
+2. Open terminal in project folder
+3. Create env file:
 
-  cd /path/to/polymarket-signal-scanner-v2
+```bash
+cp .env.example .env
+```
 
-4. Create + activate a virtual environment:
+Windows PowerShell equivalent:
 
-  python3 -m venv .venv
-  source .venv/bin/activate
+```powershell
+Copy-Item .env.example .env
+```
 
-5. Install dependencies:
+2) macOS / Linux Setup
+----------------------
+```bash
+cd /path/to/polymarket-signal-scanner-v2
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+python3 app.py --port 5001
+```
 
-  pip install -r requirements.txt
+3) Windows Setup (PowerShell)
+-----------------------------
+```powershell
+cd C:\path\to\polymarket-signal-scanner-v2
+py -3 -m venv .venv
+.venv\Scripts\python -m pip install -r requirements.txt
+.venv\Scripts\python app.py --port 5001
+```
 
-6. Create your local env file:
+Note: You can run without activating the venv (above). This avoids PowerShell execution-policy issues.
 
-  cp .env.example .env
+4) Run Modes
+------------
 
-2) Choose Run Mode
+A) Fast Reviewer Mode (recommended)
+- Keep `.env` defaults (`DB_BACKEND=sqlite`, no API keys)
+- Start app using commands above
+- Expected banner:
+
+```text
+DB Backend: sqlite | data/polymarket_scanner.db
+LLM: ✗ Rule-based fallback (set GROQ_API_KEY or GEMINI_API_KEY or ANTHROPIC_API_KEY)
+URL: http://localhost:5001
+```
+
+B) Full Mode (Postgres + LLM)
+Edit `.env`:
+
+```env
+DB_BACKEND=postgres
+DATABASE_URL=postgres://USER:PASSWORD@HOST:PORT/DBNAME
+GROQ_API_KEY=your_key_here
+# GEMINI_API_KEY=your_key_here
+# ANTHROPIC_API_KEY=your_key_here
+```
+
+Then start app (same commands as your platform section).
+
+Expected banner:
+
+```text
+DB Backend: postgres | postgres://...
+LLM: ✓ Groq API
+URL: http://localhost:5001
+Actions: Postgres write paths enabled (manual + API-tested)
+```
+
+5) How To Provide API Keys
+--------------------------
+Recommended: put keys into `.env` and restart app.
+
+macOS/Linux (temporary shell key):
+```bash
+export GROQ_API_KEY="gsk_..."
+python3 app.py --port 5001
+```
+
+Windows PowerShell (temporary session key):
+```powershell
+$env:GROQ_API_KEY = "gsk_..."
+.venv\Scripts\python app.py --port 5001
+```
+
+Key check:
+
+macOS/Linux:
+```bash
+echo "$GROQ_API_KEY"
+```
+
+PowerShell:
+```powershell
+echo $env:GROQ_API_KEY
+```
+
+If key is set, output is non-empty.
+
+6) Expected Runtime Output
+--------------------------
+After startup, expected recurring logs:
+- Scheduler starts:
+  - `[SCHEDULER] Started: ingestion=... analysis=... report=...`
+- Ingestion runs:
+  - `[INGESTION] Batch: fetched=... stored=...`
+  - `[INGESTION] Complete: ...`
+- Analysis runs:
+  - `[ANALYSIS] Analyzing ... markets ...`
+  - `[ANALYSIS] Complete: {'analyzed': ..., 'actionable': ..., ...}`
+- Report runs:
+  - `[REPORT] Generating signal report...`
+  - `[REPORT] Report #... saved to database.`
+
+7) Open App + Smoke Test
+------------------------
+Open:
+- [http://localhost:5001](http://localhost:5001)
+
+In UI:
+1. Click `Ingest`
+2. Click `Analyze`
+3. Click `Generate Report`
+4. Validate:
+   - Dashboard has `Top Actionable Signals`
+   - Live Markets table is populated
+   - Reports tab shows newest report on top
+
+8) Optional API Smoke Test
+--------------------------
+```bash
+curl -s http://localhost:5001/api/stats
+curl -s "http://localhost:5001/api/signals?label=ACTIONABLE&limit=5"
+curl -s http://localhost:5001/api/reports
+curl -s http://localhost:5001/api/job/status
+```
+
+9) Common Issues
+----------------
+A) Port in use
+- Run with another port:
+  - `python3 app.py --port 5050`
+  - or `.\.venv\Scripts\python app.py --port 5050`
+
+B) PowerShell `Activate.ps1` blocked
+- Use direct venv Python commands (no activation), as shown above.
+
+C) `open .env` does not work on Windows
+- Use `notepad .env` or edit in VS Code.
+
+D) LLM still shows rule-based
+- Ensure key exists in `.env` or session env
+- Restart process after setting keys
+- Confirm with:
+  - `echo "$GROQ_API_KEY"` (mac/Linux)
+  - `echo $env:GROQ_API_KEY` (PowerShell)
+
+E) Provider quota errors (`429`)
+- Expected on free tiers.
+- App continues with fallback logic where possible.
+
+10) Project Layout
 ------------------
-
-A) Fast Reviewer Mode (Recommended for a quick, reproducible run)
-- Uses SQLite
-- Uses rule-based fallback (no API keys required)
-- No external services needed
-
-Start:
-
-  python3 app.py --port 5001
-
-Expected startup banner includes:
-- DB Backend: sqlite
-- LLM: Rule-based fallback ...
-
-Visit:
-  http://localhost:5001
-
-B) Full Case-Study Mode (Best demo / recommended if you have keys)
-- Uses Postgres (including Supabase)
-- Uses LLM-based reasoning when configured
-- Falls back gracefully to rules if the LLM is unavailable
-
-1) Edit .env and set:
-
-  DB_BACKEND=postgres
-  DATABASE_URL=postgres://USER:PASSWORD@HOST:PORT/DBNAME
-
-  # Choose at least one:
-  GROQ_API_KEY=...
-  # GEMINI_API_KEY=...
-  # ANTHROPIC_API_KEY=...
-
-2) Load env vars into your shell:
-
-  set -a
-  source .env
-  set +a
-
-3) Start:
-
-  python3 app.py --port 5001
-
-Expected startup banner includes:
-- DB Backend: postgres | postgres://...
-- LLM: ✓ Groq API (or your configured provider)
-
-3) Open the App
----------------
-Visit:
-  http://localhost:5001
-
-4) Reviewer Smoke Test (UI)
----------------------------
-In the UI, run the standard workflow:
-
-1. Click Ingest (fetch Polymarket markets)
-2. Click Analyze (classify + route + score)
-3. Click Generate Report
-4. Verify pages:
-   - Dashboard: top signals + PM queue summary
-   - Live Markets: full live market feed
-   - Reports: newly generated report appears at the top
-
-Notes:
-- If no LLM key is configured, results are still produced via rules.
-- If provider quota is hit, the pipeline continues via fallback.
-
-5) API Smoke Test (Optional)
-----------------------------
-From another terminal:
-
-  curl -s http://localhost:5001/api/stats
-  curl -s "http://localhost:5001/api/signals?label=ACTIONABLE&limit=5"
-  curl -s http://localhost:5001/api/reports
-  curl -s http://localhost:5001/api/job/status
-
-6) Known / Expected Behavior During Review
-------------------------------------------
-- If LLM quota is exhausted or a provider errors:
-  - analysis/report generation falls back gracefully
-  - the pipeline does not stop
-- Free-tier limits may reduce reasoning depth, but the app remains operational.
-
-7) What Good Output Looks Like (Quick sanity checks)
-----------------------------------------------------
-After Analyze, you should see signals with:
-- A label: IGNORE, MONITOR, or ACTIONABLE
-- A relevance score (0–100)
-- Routed funds (e.g., Technology Leaders, Crypto Leaders, Multi Asset)
-- Clear explainability:
-  - matched keywords / tags (driver + channel)
-  - a short cause→effect chain (event → channel → holdings)
-  - impacted holdings with direction (UP/DOWN/MIXED) and confidence
-
-Example (illustrative):
-- Market: "Will US impose new export controls on AI chips by <date>?"
-- Channel: AI/Semis + Regulation
-- Funds: Technology Leaders / Global Leaders
-- Holdings impacted: NVDA, TSM, MU (direction depends on policy severity + exposure)
-
-8) Common Issues (and fixes)
-----------------------------
-
-A) Port already in use (5001)
-- Run on a different port:
-    python3 app.py --port 5050
-  Then open:
-    http://localhost:5050
-
-B) Virtual environment not activated
-- If you see "ModuleNotFoundError" after installing:
-    source .venv/bin/activate
-  Then retry.
-
-C) Polymarket API request errors
-- Ensure you have internet access.
-- Retry Ingest after a minute (rate limits/network hiccups happen).
-
-D) Postgres mode fails to connect
-- Double-check DATABASE_URL format and credentials.
-- Make sure the DB allows inbound connections from your IP (Supabase settings).
-- If unsure, use Fast Reviewer Mode (SQLite) for a deterministic run.
-
-E) LLM not detected / provider errors
-- Confirm you set at least one key in .env and exported it:
-    set -a && source .env && set +a
-- If quota is exhausted, the app will still run via rule-based fallback.
-
-9) Project Layout
------------------
+```text
 app.py
 backend/
   ingestion.py
@@ -190,18 +204,20 @@ frontend/
 scripts/
   migrate_sqlite_to_postgres.py
 REPORT.md
+```
 
-10) Core Endpoints
+11) Core Endpoints
 ------------------
-- GET  /api/stats
-- GET  /api/markets
-- GET  /api/markets/live
-- GET  /api/signals
-- GET  /api/reports
-- POST /api/actions/ingest
-- POST /api/actions/analyze
-- POST /api/actions/report
-- GET  /api/job/status
+- `GET /api/stats`
+- `GET /api/markets`
+- `GET /api/markets/live`
+- `GET /api/signals`
+- `GET /api/reports`
+- `POST /api/actions/ingest`
+- `POST /api/actions/analyze`
+- `POST /api/actions/report`
+- `GET /api/job/status`
+
 
 11) Case-Study Mapping (What to look for)
 -----------------------------------------
